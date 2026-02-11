@@ -47,6 +47,21 @@ class SummaryServer {
   }
 
   /**
+   * 格式化本地时间为易读的字符串格式
+   * @param date 日期对象
+   * @returns 格式化后的本地时间字符串 (YYYY-MM-DD HH:mm:ss)
+   */
+  private formatLocalTime(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
    * 生成唯一ID
    * @returns 唯一标识符字符串
    */
@@ -64,7 +79,7 @@ class SummaryServer {
     const keywords = new Set<string>();
     
     // 添加默认关键词
-    keywords.add('mcp');
+    //keywords.add('mcp');
     
     // 添加用户提供的关键词
     if (providedKeywords && providedKeywords.length > 0) {
@@ -75,13 +90,15 @@ class SummaryServer {
       });
     }
     
-    // 从内容中提取可能的关键词（简单实现）
-    const commonKeywords = ['ai', '对话', '总结', '记录', '项目', '任务', '问题', '解决方案'];
+    // 从内容中提取可能的关键词（简单实现）暂不实施
+    /*  */
+    const commonKeywords = ['创意'];
     commonKeywords.forEach(keyword => {
       if (content.toLowerCase().includes(keyword.toLowerCase())) {
         keywords.add(keyword);
       }
     });
+  
     
     return Array.from(keywords);
   }
@@ -267,13 +284,16 @@ class SummaryServer {
         throw new Error('没有总结可保存');
       }
       
-      // 确定文件保存路径
-      const storagePath = customPath || process.env.SUMMARY_STORAGE_PATH || '/home/wsd1/Documents/summaries';
-      
       // 动态导入fs和path模块
       const fs = await import('fs');
       const path = await import('path');
+      const os = await import('os');
+
+
+      // 确定文件保存路径
+      const storagePath = customPath || process.env.SUMMARY_STORAGE_PATH || os.homedir();
       
+
       // 创建目录（如果不存在）
       if (!fs.existsSync(storagePath)) {
         fs.mkdirSync(storagePath, { recursive: true });
@@ -291,7 +311,7 @@ class SummaryServer {
       
       if (!fileExists) {
         // 文件不存在：创建新文件并写入所有总结
-        let fileContent = '';
+        let fileContent = `=== 保存时间: ${this.formatLocalTime(now)} (北京时间) ===\n`;
         summaries.forEach(summary => {
           fileContent += `${summary}\n`;
         });
@@ -303,7 +323,7 @@ class SummaryServer {
         console.error(chalk.cyan(`  保存数量: ${summaries.length}`));
       } else {
         // 文件已存在：先添加时间记录，然后追加所有总结
-        const timeRecord = `=== 保存时间: ${now.toISOString()} ===\n`;
+        const timeRecord = `=== 保存时间: ${this.formatLocalTime(now)} (北京时间) ===\n`;
         fs.appendFileSync(filePath, timeRecord, 'utf8');
         
         summaries.forEach(summary => {
@@ -313,7 +333,7 @@ class SummaryServer {
         console.error(chalk.green('💾 总结已追加到现有文件:'));
         console.error(chalk.cyan(`  文件路径: ${filePath}`));
         console.error(chalk.cyan(`  追加数量: ${summaries.length}`));
-        console.error(chalk.cyan(`  时间记录: ${now.toISOString()}`));
+        console.error(chalk.cyan(`  时间记录: ${this.formatLocalTime(now)} (北京时间)`));
       }
       
       return {
@@ -336,33 +356,25 @@ const ADD_SUMMARY_TOOL: Tool = {
   description: `添加对话总结到记录中。
 
 当用户说"总结记录一下"时，使用此工具记录当前对话的有价值信息。
-
-参数说明：
-♦ content: 需要总结的对话内容
-♦ keywords: 可选的关键词列表，用于标记总结的主题
-
-总结格式：
-YYYYMMDD #关键词1 #关键词2 总结内容...
-
-示例：
-20260211 #mcp #ai 讨论了如何创建MCP服务器，用户确认了设计需求...
-
 使用场景：
-* 记录重要的对话要点
+* 记录重要的用户要求
 * 标记用户认可的有用信息
 * 跟踪项目进展和决策
-* 保存需要后续参考的内容
 
 重点要求：
-  总结内容需要清晰简练，遵循一句话说明白的要求。要聚焦在用户提出的问题要求上，减少AI普通反馈信息，除非用户有对该内容表现出赞赏认同和肯定的表示。
-  关键词的选择要要宁缺毋滥（不要超过三个）。要突出特殊性独立性代表性，比如项目名称、关键技术等，不要太笼统的名词。
+  总结内容需要清晰简练，遵循一句话说明白的原则。要聚焦在用户提出的内容上。
+  关键词的选择要要宁缺毋滥（不要超过5个）。要突出特殊性独立性关联性，比如项目名称、关键技术、人名等，不要太笼统的名词。
+
+参数说明：
+♦ content: 需要总结的对话内容。例如：'用户需要创建一个MCP服务器来记录对话总结。'
+♦ keywords: 可选的关键词列表，用于标记总结的主题。
 `,
   inputSchema: {
     type: "object",
     properties: {
       content: {
         type: "string",
-        description: "需要总结的对话内容"
+        description: "需要总结的内容"
       },
       keywords: {
         type: "array",
@@ -430,14 +442,8 @@ const SAVE_SUMMARIES_TOOL: Tool = {
 1. 打开 当前时间戳YYYYMMDD.md 文件
 2. 将当前的所有记录summaries数组内的内容，依序添加在文件后续
 3. 只记录字符串，不用记录json格式
+`,
 
-文件路径：
-通过MCP配置的环境变量SUMMARY_STORAGE_PATH指定，默认为/home/wsd1/Documents/summaries
-
-使用场景：
-* 定期备份对话总结
-* 导出总结记录供其他用途
-* 长期保存重要对话记录`,
   inputSchema: {
     type: "object",
     properties: {
@@ -488,6 +494,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           type: "text",
           text: JSON.stringify({
             status: "success",
+            action: "add_summary",
             message: "总结已成功添加",
             id: result.id,
             formattedSummary: result.formattedSummary,
@@ -499,16 +506,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     else if (request.params.name === "show_summaries") {
       const args = request.params.arguments as { filterKeywords?: string[]; limit?: number };
       const summaries = summaryServer.getSummaries(args.filterKeywords, args.limit);
-      const stats = summaryServer.getStats();
+      //const stats = summaryServer.getStats();
       
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
             status: "success",
+            action: "show_summaries",
             total: summaries.length,
             summaries: summaries,
-            stats: stats,
+            //stats: stats,
             message: `找到 ${summaries.length} 条总结记录`
           }, null, 2)
         }]
@@ -523,11 +531,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           type: "text",
           text: JSON.stringify({
             status: "success",
+            action: "save_summaries",
             message: "总结已成功保存到文件",
             filePath: result.filePath,
             savedCount: result.savedCount,
             summaries: result.summaries,
-            stats: summaryServer.getStats()
+            //stats: summaryServer.getStats()
           }, null, 2)
         }]
       };
@@ -564,6 +573,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function runServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  const os = await import('os');
+
   console.error(chalk.blue("📝 Summary-Always MCP Server 正在运行"));
   console.error(chalk.yellow("🔥 MCP SUMMARY-ALWAYS SERVER 已启动 🔥"));
   console.error(chalk.cyan("可用工具:"));
@@ -571,7 +582,7 @@ async function runServer() {
   console.error(chalk.cyan("  • show_summaries - 显示历史总结"));
   console.error(chalk.cyan("  • save_summaries - 保存总结到文件"));
   console.error(chalk.magenta("环境变量:"));
-  console.error(chalk.magenta(`  • SUMMARY_STORAGE_PATH: ${process.env.SUMMARY_STORAGE_PATH || '/home/wsd1/Documents/summaries'}`));
+  console.error(chalk.magenta(`  • SUMMARY_STORAGE_PATH: ${process.env.SUMMARY_STORAGE_PATH || os.homedir()}`));
 }
 
 // 调用主函数启动服务器，并捕获任何错误
